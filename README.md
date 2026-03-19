@@ -2,9 +2,9 @@
 
 Real-time vehicle proximity awareness system for motorsport track days.
 
-open-PROX provides an ACC/iRacing-style top-down radar display showing nearby vehicle positions around the host car. Side-mounted fisheye cameras detect vehicles, estimate range and bearing, and render coloured contact blips with velocity vectors and trail ghosting on a cockpit-mounted 720x720 display.
+open-PROX provides an ACC-style top-down proximity radar showing nearby vehicle positions around the host car. Side-mounted fisheye cameras detect vehicles, estimate range and bearing, and render white car-shaped blips with orange proximity warnings on a cockpit-mounted 720x720 display.
 
-![Status](https://img.shields.io/badge/status-pre--release-orange)
+![Status](https://img.shields.io/badge/status-Phase%200%20complete-blue)
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%205-red)
 ![License](https://img.shields.io/badge/license-TBD-lightgrey)
 
@@ -18,17 +18,17 @@ Cameras ─► Ingest ─► Detection (Hailo AI) ─► Range Estimation ─►
 2. **Detection** — YOLO-nano inference offloaded to Hailo-10H (40 TOPS) via HailoRT, with a contour-based fallback for bench testing
 3. **Range** — Monocular known-width estimation (v1), stereo disparity (v2), radar fusion (v3 future)
 4. **Tracking** — SORT with Kalman filters, persistent contact IDs, coast/drop lifecycle
-5. **Display** — Pygame 720x720 at 30fps: host vehicle centred, coloured blips (green/amber/red by closing speed), velocity vectors, trail ghosting, coverage cone overlay
+5. **Display** — ACC-style proximity radar at 60fps: white car-shaped blips, orange proximity glow, fading crosshairs, 5m range
 
 ## Hardware
 
 | Component | Purpose |
 |---|---|
-| Raspberry Pi 5 (8GB) | Compute |
+| Raspberry Pi 5 (2GB) | Compute (upgrade to 8GB if needed under real load) |
 | Hailo AI HAT+ 2 (Hailo-10H) | 40 TOPS inference accelerator |
 | Waveshare 4" DSI LCD (C) | 720x720 IPS cockpit display |
-| Kayeton KYT-U100-GS2L (x2 or x4) | OV9281 waterproof cameras, 120fps global shutter |
-| M12 fisheye lens (1.39mm 180° or 1.7mm 130°) | Wide-angle coverage per side |
+| Arducam B0332 (x2 or x4) | OV9281 bare board cameras, 120fps global shutter, USB |
+| M12 lenses | 2.1mm fisheye (~155°) for vehicle, 6108 rectilinear (~85°) for bench |
 | RAM cross bar clamp mounts | Roof rack mounting, no drilling |
 
 Two camera configurations are supported:
@@ -36,38 +36,28 @@ Two camera configurations are supported:
 - **Config A** — One camera per side (v1 target). Monocular range estimation. No hubs needed.
 - **Config B** — Two cameras per side on a rigid baseline mount. Adds stereo depth (60mm baseline, reliable 3-8m). Requires powered USB 2.0 hubs.
 
+Permanent installation uses through-mount cameras — bare boards in ASA enclosures with only the M12 lens protruding through grommetted bodywork.
+
 See the full BOM in [open-PROX-project-plan-v5.md](open-PROX-project-plan-v5.md).
 
-## Installation
-
-### Prerequisites
-
-- Raspberry Pi 5 with Raspberry Pi OS (64-bit)
-- Hailo AI HAT+ 2 installed and recognised
-- Waveshare 4" DSI LCD (C) connected via DSI + JST-PH 4-pin header
-
-### Setup
+## Quick Start
 
 ```bash
 git clone https://github.com/SamSkjord/open-PROX.git
 cd open-PROX
-
-# Install system dependencies, display driver, kernel pin, and udev rules
-sudo bash install.sh
-
-# Install Python dependencies
 pip install -r requirements.txt
-```
-
-### Run
-
-```bash
 python main.py
 ```
 
-### Desktop Development (no hardware)
+Phase 0 runs on any desktop with Python and Pygame — no Pi or cameras needed. Synthetic targets demonstrate the radar display.
 
-Phase 0 uses synthetic targets for display development. No cameras or Pi hardware required — runs on any machine with Python and Pygame.
+### Pi 5 Installation
+
+```bash
+sudo bash install.sh        # Kernel pin + Waveshare driver + udev rules
+pip install -r requirements.txt
+python main.py
+```
 
 ## Configuration
 
@@ -75,27 +65,26 @@ All settings live in `config.py`. Key options:
 
 | Setting | Default | Purpose |
 |---|---|---|
-| `CAMERA_CONFIG` | `"single"` | `"single"` (Config A) or `"dual"` (Config B) |
-| `BENCH_TEST_MODE` | `False` | Enable bench testing with 1:64 scale Hot Wheels |
-| `BENCH_DETECTOR` | `"hailo"` | `"hailo"` or `"contour"` (no training needed) |
-| `DISPLAY_RANGE_M` | `25.0` | Radar display radius in metres |
-| `DETECTION_CONFIDENCE_MIN` | `0.45` | Minimum detection confidence |
-| `TRACK_COAST_MS` | `500` | Time before coasted contact is dropped |
-
-Camera devices use udev symlinks (`/dev/video-left`, `/dev/video-right`, etc.) for stable identification across reboots.
+| `DISPLAY_RANGE_M` | `5.0` | Radar display radius in metres |
+| `DISPLAY_FPS` | `60` | Render frame rate |
+| `GLOW_RANGE_M` | `2.0` | Orange proximity warning threshold |
+| `COVERAGE_CONES_ENABLED` | `False` | Show camera FOV overlay |
+| `BLIP_LENGTH_PX` | `32` | Contact car blip size |
+| `TRACK_COAST_MS` | `500` | Coast time before dropping contact |
+| `OCCLUDED_COAST_MS` | `2500` | Extended coast when occluded by adjacent car |
 
 ## Build Phases
 
-| Phase | Description | Hardware Required |
-|---|---|---|
-| 0 | Display mock with synthetic targets | None (desktop) |
-| 1 | Lens calibration and alignment tool | Camera + Pi |
-| 2 | Single camera pipeline with monocular range | Config A |
-| 3 | SORT tracking, persistent IDs, trail ghosting | Config A |
-| 4 | USB profiling for 4-camera scheduling | 4 cameras |
-| 5 | Vehicle installation and real-world validation | Config A on vehicle |
-| 6 | Dual camera pipeline with stereo depth | Config B |
-| 7 | Radar fusion via CAN bus | CAN adapter |
+| Phase | Description | Hardware Required | Status |
+|---|---|---|---|
+| 0 | Display mock with synthetic targets | None (desktop) | Complete |
+| 1 | Lens calibration and alignment tool | Camera + Pi | Next |
+| 2 | Single camera pipeline with monocular range | Config A | |
+| 3 | SORT tracking, persistent IDs, trail ghosting | Config A | |
+| 4 | USB profiling for 4-camera scheduling | 4 cameras | |
+| 5 | Vehicle installation and real-world validation | Config A on vehicle | |
+| 6 | Dual camera pipeline with stereo depth | Config B | |
+| 7 | Radar fusion via CAN bus | CAN adapter | |
 
 ## Range Estimation
 
@@ -108,6 +97,8 @@ Three methods, layered by availability:
 ## Bench Testing
 
 Bench tests use 1:64 scale Hot Wheels on a flat surface. Set `BENCH_TEST_MODE = True` and measure actual car width with calipers (`BENCH_OBJECT_WIDTH_MM`). The contour detector (`BENCH_DETECTOR = "contour"`) requires no model training — useful for validating range estimation and tracking before the Hailo pipeline is ready.
+
+Calibration starts with the 6108 rectilinear lens for clean validation of monocular range maths against a ruler, before introducing fisheye distortion with the 2.1mm lens.
 
 ## Relation to openTPT
 

@@ -21,6 +21,8 @@ class SyntheticTargetGenerator:
         if intermittent is not None:
             contacts.append(intermittent)
 
+        contacts.append(self._swerver_right(t))
+
         return contacts
 
     def _overtaker_left(self, t):
@@ -63,6 +65,17 @@ class SyntheticTargetGenerator:
         y = 1.5
         return self._make_track(5, x, y, 0.0, 0.1, t,
                                 state="COASTED" if cycle > 2.5 else "ACTIVE")
+
+    def _swerver_right(self, t):
+        """Starts at x=+3m behind, swerves to x=+1m as it comes alongside. 10s loop."""
+        progress = (t % 10.0) / 10.0
+        y = -4.5 + 9.0 * progress  # -4.5 to +4.5
+        # Swerve: x=3 at rear, tightens to x=1 at y=0 (alongside), back to 3 ahead
+        closeness = 1.0 - abs(y) / 4.5  # 0 at ends, 1 at alongside
+        x = 3.0 - 2.0 * closeness       # 3m → 1m → 3m
+        vx = -2.0 * closeness if y < 0 else 2.0 * closeness
+        vy = 0.9
+        return self._make_track(6, x, y, vx, vy, t)
 
     def _make_track(self, track_id, x, y, vx, vy, t, state="ACTIVE"):
         """Build a track dict from Cartesian position relative to host.

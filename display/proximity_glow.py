@@ -4,7 +4,7 @@ import pygame
 def draw_proximity_glow(surface, contacts_screen, contacts, cx, cy,
                         glow_colour, glow_max_alpha, glow_range_m,
                         glow_radius_px, pixels_per_metre):
-    """Draw orange radial glow around close contacts — the ACC signature look.
+    """Draw orange radial glow around close contacts - the ACC signature look.
 
     contacts_screen: list of (sx, sy) screen positions matching contacts list.
     """
@@ -32,7 +32,7 @@ def draw_proximity_glow(surface, contacts_screen, contacts, cx, cy,
 
 
 def _draw_radial_glow(surface, cx, cy, radius, colour, peak_alpha):
-    """Draw a soft radial gradient circle — bright centre fading to transparent."""
+    """Draw a soft radial gradient circle - bright centre fading to transparent."""
     steps = 8
     for i in range(steps, 0, -1):
         t = i / steps

@@ -1,5 +1,5 @@
-# open-PROX — Proximity Awareness System
-## Project Plan v5 — Corrected USB Topology
+# open-PROX - Proximity Awareness System
+## Project Plan v5 - Corrected USB Topology
 
 ---
 
@@ -7,7 +7,7 @@
 
 open-PROX is a dedicated vehicle proximity awareness system for motorsport track day use, providing a real-time top-down ACC-style radar display showing vehicle positions around the host car. It runs on a dedicated Raspberry Pi 5 with Hailo AI HAT+ 2, independent from the existing openTPT telemetry system.
 
-The display aesthetic is modelled on the ACC/iRacing proximity radar — host vehicle centred, top-down vehicle-frame-fixed view, coloured contact blips with velocity vectors and trail ghosting, coverage cone overlay.
+The display aesthetic is modelled on the ACC/iRacing proximity radar - host vehicle centred, top-down vehicle-frame-fixed view, coloured contact blips with velocity vectors and trail ghosting, coverage cone overlay.
 
 ---
 
@@ -66,7 +66,7 @@ Small powered USB 2.0 hub per side. Requirements:
 
 ## Hardware Bill of Materials
 
-### Config A — Single Camera Per Side
+### Config A - Single Camera Per Side
 
 | Component | Qty | Source | Notes |
 |---|---|---|---|
@@ -89,7 +89,7 @@ Small powered USB 2.0 hub per side. Requirements:
 | Hot Wheels cars varied | 6-10 | Any | Bench testing |
 | Digital calipers | 1 | Any | Measure Hot Wheels width |
 
-### Config B Additions — Dual Camera Per Side
+### Config B Additions - Dual Camera Per Side
 
 | Component | Qty | Notes |
 |---|---|---|
@@ -142,7 +142,7 @@ dtoverlay=vc4-kms-dsi-waveshare-panel,4_0_inchC
 ### Kernel Pinning
 
 ```bash
-# In install.sh — prevent silent kernel updates breaking display driver
+# In install.sh - prevent silent kernel updates breaking display driver
 sudo apt-mark hold raspberrypi-kernel
 sudo apt-mark hold raspberrypi-kernel-headers
 ```
@@ -153,7 +153,7 @@ Update kernel deliberately: unhold, update, reinstall Waveshare driver, rehold.
 
 ## Range Estimation Strategy
 
-### Method 1 — Monocular Known-Width (v1, both configs)
+### Method 1 - Monocular Known-Width (v1, both configs)
 
 ```
 range = (known_real_width * focal_length_pixels) / bounding_box_width_pixels
@@ -163,11 +163,11 @@ Focal length in pixels from lens calibration. Known width from config. Orientati
 
 Accuracy: ±10-15%. Sufficient for proximity display. **Makes Config A a complete ranging system.**
 
-### Method 2 — Stereo Disparity (v2, Config B only)
+### Method 2 - Stereo Disparity (v2, Config B only)
 
 OpenCV StereoBM/SGBM on rectified stereo pairs. 60mm fixed baseline reliable at 3-8m, monocular fallback beyond. Overrides monocular for in-range targets when active.
 
-### Method 3 — Radar Fusion (v3, future)
+### Method 3 - Radar Fusion (v3, future)
 
 Passive CAN tap on openTPT can_b1_1. Precise range and closing velocity on rear arc. Overrides camera methods for rear arc contacts.
 
@@ -175,7 +175,7 @@ Passive CAN tap on openTPT can_b1_1. Precise range and closing velocity on rear 
 
 ## Camera Configurations
 
-### Config A — Single Camera Per Side
+### Config A - Single Camera Per Side
 
 One OV9281 per side, one camera per USB 3.0 port. No hubs required.
 
@@ -188,7 +188,7 @@ Coverage: 180° (1.39mm) or 130° (1.7mm) per side.
 Range: Monocular known-width.
 V1 deployment target.
 
-### Config B — Dual Camera Per Side
+### Config B - Dual Camera Per Side
 
 Two OV9281 per side on 3D-printed PETG rigid baseline mount.
 
@@ -203,7 +203,7 @@ Sync: Software timestamp pairing at 120fps, 16ms acceptance window.
 
 ---
 
-## Bench Test Plan — Hot Wheels Scale
+## Bench Test Plan - Hot Wheels Scale
 
 ### Scale Reference (1:64)
 
@@ -232,14 +232,14 @@ Measure actual test car with calipers. Set as `BENCH_OBJECT_WIDTH_MM`.
 
 ### Test Sequence
 
-1. Lens calibration — derive focal_length_pixels
-2. Monocular range accuracy — known positions vs estimates
-3. Multi-target static — three cars simultaneously
-4. Tracking continuity — ID stability through traverse and occlusion
-5. Orientation sensitivity — side-on to head-on, verify height fallback
-6. Display end-to-end — BENCH_TEST_MODE on, blip positions match physical
-7. Config B stereo — range vs ruler ground truth (when second pair available)
-8. USB scheduling profiling — four cameras concurrent, CPU interrupt overhead
+1. Lens calibration - derive focal_length_pixels
+2. Monocular range accuracy - known positions vs estimates
+3. Multi-target static - three cars simultaneously
+4. Tracking continuity - ID stability through traverse and occlusion
+5. Orientation sensitivity - side-on to head-on, verify height fallback
+6. Display end-to-end - BENCH_TEST_MODE on, blip positions match physical
+7. Config B stereo - range vs ruler ground truth (when second pair available)
+8. USB scheduling profiling - four cameras concurrent, CPU interrupt overhead
 
 ---
 
@@ -380,28 +380,28 @@ RADAR_DBC_PATH = "opendbc/toyota_prius_2017_adas.dbc"
 
 ## Build Phases
 
-### Phase 0 — Display Mock (START HERE, desktop only)
+### Phase 0 - Display Mock (START HERE, desktop only)
 Synthetic targets, full visual design. No hardware required.
 
-### Phase 1 — Lens Calibration and Alignment Tool
+### Phase 1 - Lens Calibration and Alignment Tool
 Derives focal_length_pixels. Required before any range estimation.
 
-### Phase 2 — Single Camera Pipeline with Monocular Range (Config A)
+### Phase 2 - Single Camera Pipeline with Monocular Range (Config A)
 Camera ingest, detection, monocular range. Both sides live. Bench tests 1-6.
 
-### Phase 3 — Tracking
+### Phase 3 - Tracking
 SORT tracker, persistent IDs, coasting, trail ghosting. Bench test 4.
 
-### Phase 4 — USB Profiling (Config B preparation)
-Add `usb_profiler.py` — run four cameras concurrently, measure CPU interrupt overhead, confirm scheduling headroom before committing to Config B hardware.
+### Phase 4 - USB Profiling (Config B preparation)
+Add `usb_profiler.py` - run four cameras concurrently, measure CPU interrupt overhead, confirm scheduling headroom before committing to Config B hardware.
 
-### Phase 5 — Vehicle Installation (Config A)
+### Phase 5 - Vehicle Installation (Config A)
 RAM mount, cable routing, alignment tool on vehicle, real-world validation.
 
-### Phase 6 — Dual Camera Pipeline with Stereo Depth (Config B)
+### Phase 6 - Dual Camera Pipeline with Stereo Depth (Config B)
 Powered hubs, second camera pair, sync engine, stereo calibration, disparity. Bench test 7-8.
 
-### Phase 7 — Radar Fusion (future)
+### Phase 7 - Radar Fusion (future)
 Passive CAN tap, FusionEngine implementation.
 
 ---

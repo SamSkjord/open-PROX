@@ -14,11 +14,11 @@ open-PROX provides an ACC-style top-down proximity radar showing nearby vehicle 
 Cameras ─► Ingest ─► Detection (Hailo AI) ─► Range Estimation ─► Tracking ─► Display
 ```
 
-1. **Ingest** — USB capture from side-mounted OV9281 global shutter cameras at 120fps 720p monochrome
-2. **Detection** — YOLO-nano inference offloaded to Hailo-10H (40 TOPS) via HailoRT, with a contour-based fallback for bench testing
-3. **Range** — Monocular known-width estimation (v1), stereo disparity (v2), radar fusion (v3 future)
-4. **Tracking** — SORT with Kalman filters, persistent contact IDs, coast/drop lifecycle
-5. **Display** — ACC-style proximity radar at 60fps: white car-shaped blips, orange proximity glow, fading crosshairs, 5m range
+1. **Ingest** - USB capture from side-mounted OV9281 global shutter cameras at 120fps 720p monochrome
+2. **Detection** - YOLO-nano inference offloaded to Hailo-10H (40 TOPS) via HailoRT, with a contour-based fallback for bench testing
+3. **Range** - Monocular known-width estimation (v1), stereo disparity (v2), radar fusion (v3 future)
+4. **Tracking** - SORT with Kalman filters, persistent contact IDs, coast/drop lifecycle
+5. **Display** - ACC-style proximity radar at 60fps: white car-shaped blips, orange proximity glow, fading crosshairs, 5m range
 
 ## Hardware
 
@@ -33,10 +33,10 @@ Cameras ─► Ingest ─► Detection (Hailo AI) ─► Range Estimation ─►
 
 Two camera configurations are supported:
 
-- **Config A** — One camera per side (v1 target). Monocular range estimation. No hubs needed.
-- **Config B** — Two cameras per side on a rigid baseline mount. Adds stereo depth (60mm baseline, reliable 3-8m). Requires powered USB 2.0 hubs.
+- **Config A** - One camera per side (v1 target). Monocular range estimation. No hubs needed.
+- **Config B** - Two cameras per side on a rigid baseline mount. Adds stereo depth (60mm baseline, reliable 3-8m). Requires powered USB 2.0 hubs.
 
-Permanent installation uses through-mount cameras — bare boards in ASA enclosures with only the M12 lens protruding through grommetted bodywork.
+Permanent installation uses through-mount cameras - bare boards in ASA enclosures with only the M12 lens protruding through grommetted bodywork.
 
 See the full BOM in [open-PROX-project-plan-v5.md](open-PROX-project-plan-v5.md).
 
@@ -49,7 +49,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Phase 0 runs on any desktop with Python and Pygame — no Pi or cameras needed. Synthetic targets demonstrate the radar display.
+Phase 0 runs on any desktop with Python and Pygame - no Pi or cameras needed. Synthetic targets demonstrate the radar display.
 
 ### Pi 5 Installation
 
@@ -90,13 +90,13 @@ All settings live in `config.py`. Key options:
 
 Three methods, layered by availability:
 
-1. **Monocular known-width** (v1) — `range = (real_width * focal_length_px) / bbox_width_px`. Switches to height-based estimate when bounding box aspect ratio indicates head-on approach. Accuracy ~10-15%.
-2. **Stereo disparity** (v2, Config B) — OpenCV StereoBM/SGBM on rectified pairs. 60mm baseline reliable at 3-8m, monocular fallback beyond.
-3. **Radar fusion** (v3, future) — Passive CAN tap on vehicle radar. Precise range and closing velocity on rear arc.
+1. **Monocular known-width** (v1) - `range = (real_width * focal_length_px) / bbox_width_px`. Switches to height-based estimate when bounding box aspect ratio indicates head-on approach. Accuracy ~10-15%.
+2. **Stereo disparity** (v2, Config B) - OpenCV StereoBM/SGBM on rectified pairs. 60mm baseline reliable at 3-8m, monocular fallback beyond.
+3. **Radar fusion** (v3, future) - Passive CAN tap on vehicle radar. Precise range and closing velocity on rear arc.
 
 ## Bench Testing
 
-Bench tests use 1:64 scale Hot Wheels on a flat surface. Set `BENCH_TEST_MODE = True` and measure actual car width with calipers (`BENCH_OBJECT_WIDTH_MM`). The contour detector (`BENCH_DETECTOR = "contour"`) requires no model training — useful for validating range estimation and tracking before the Hailo pipeline is ready.
+Bench tests use 1:64 scale Hot Wheels on a flat surface. Set `BENCH_TEST_MODE = True` and measure actual car width with calipers (`BENCH_OBJECT_WIDTH_MM`). The contour detector (`BENCH_DETECTOR = "contour"`) requires no model training - useful for validating range estimation and tracking before the Hailo pipeline is ready.
 
 Calibration starts with the 6108 rectilinear lens for clean validation of monocular range maths against a ruler, before introducing fisheye distortion with the 2.1mm lens.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""open-PROX — Proximity Awareness System display mock."""
+"""open-PROX - Proximity Awareness System display mock."""
 
 from display.renderer import Renderer
 from tools.synthetic_targets import SyntheticTargetGenerator

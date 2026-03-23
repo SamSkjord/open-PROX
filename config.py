@@ -23,9 +23,26 @@ RANGE_RING_COLOUR = (30, 30, 30)
 
 # ── Coverage cones ────────────────────────────────────────────────
 COVERAGE_CONES_ENABLED = False
-LENS_FOV_DEG = 155.0            # per side, 2.1mm fisheye
+LENS_FOV_DEG = 155.0            # per side, 1.7mm fisheye
 
 # ── Tracking thresholds ──────────────────────────────────────────
 TRACK_COAST_MS = 500
 TRACK_DROP_MS = 1000
 OCCLUDED_COAST_MS = 2500
+
+# ── Camera ─────────────────────────────────────────────────────────
+CAM_DEVICE = 0                  # /dev/video index
+CAM_WIDTH = 1280
+CAM_HEIGHT = 720
+CAM_FPS = 30
+CAM_SIDE = "RIGHT"              # which side this camera covers
+
+# ── Detection ──────────────────────────────────────────────────────
+HAILO_MODEL_PATH = "/usr/share/hailo-models/yolov8m_h10.hef"
+DETECT_CONFIDENCE = 0.5
+# COCO class IDs for vehicles
+VEHICLE_CLASS_IDS = {2, 3, 5, 7}  # car, motorcycle, bus, truck
+
+# ── Range estimation ───────────────────────────────────────────────
+VEHICLE_WIDTH_M = 1.8           # typical track car width
+FOCAL_LENGTH_PX = 500.0         # approximate for 1.7mm fisheye at frame centre

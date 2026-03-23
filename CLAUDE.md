@@ -20,15 +20,59 @@ The full project plan lives in `open-PROX-project-plan-v5.md`.
 ## Commands
 
 ```bash
-# Run (works on desktop with synthetic targets, no hardware needed)
+# Run on desktop (synthetic targets, no hardware needed)
 python main.py
 
-# Dependencies
+# Dependencies (desktop)
 pip install -r requirements.txt
 
 # Install (on Pi 5 only)
 sudo bash install.sh        # Kernel pin + Waveshare driver + udev rules
 ```
+
+## Pi Setup (Raspbian Lite)
+
+Raspbian Lite has no X11/Wayland - pygame renders via SDL2 KMSDRM directly to the DSI framebuffer.
+
+```bash
+# Install SDL2 and Python dev headers
+sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev python3-dev
+
+# Create venv and build pygame from source (must link against system SDL2 for KMSDRM)
+python3 -m venv ~/prox-env
+~/prox-env/bin/pip install --no-binary pygame pygame
+
+# Deploy code (from dev machine, no rsync on Pi)
+scp -r display/ tools/ *.py requirements.txt pi@<PI_IP>:~/open-PROX/
+
+# Run on Pi
+cd ~/open-PROX && SDL_VIDEODRIVER=kmsdrm ~/prox-env/bin/python3 main.py
+```
+
+**Key detail:** The pip wheel for pygame does not include KMSDRM support. You must `--no-binary pygame` to compile against the system SDL2 libs.
+
+## Hailo AI HAT+ 2 Setup
+
+```bash
+# Install Hailo-10H metapackage (driver, runtime, Python bindings, TAPPAS)
+sudo apt-get install -y hailo-h10-all
+
+# Blacklist the Hailo-8 driver (conflicts with Hailo-10H driver over sysfs name)
+echo 'blacklist hailo_pci' | sudo tee /etc/modprobe.d/hailo-blacklist.conf
+
+# Symlink system hailo_platform into venv (installed to /usr/lib/python3/dist-packages)
+SITE=$(~/prox-env/bin/python3 -c 'import site; print(site.getsitepackages()[0])')
+ln -sf /usr/lib/python3/dist-packages/hailo_platform $SITE/hailo_platform
+
+# Also need numpy in venv for hailo_platform
+~/prox-env/bin/pip install numpy
+
+# Verify
+hailortcli fw-control identify
+~/prox-env/bin/python3 -c "from hailo_platform import VDevice; VDevice()"
+```
+
+**Key detail:** Both `hailo_pci` (Hailo-8) and `hailo1x_pci` (Hailo-10H) drivers ship in the package. They conflict on the `hailo_chardev` sysfs class name. Blacklisting `hailo_pci` is required for `/dev/hailo0` to appear.
 
 ## Pipeline Architecture
 

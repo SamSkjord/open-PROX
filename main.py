@@ -11,12 +11,14 @@ from display.renderer import Renderer
 
 
 def run_live():
-    """Live camera pipeline: ingest -> detect -> range -> display."""
+    """Live camera pipeline: ingest -> detect -> range -> track -> display."""
     from ingest.camera import Camera
     from detect.yolo import YoloDetector
     from range.monocular import detections_to_contacts
+    from track.sort import SortTracker
 
     renderer = Renderer()
+    tracker = SortTracker()
 
     camera = Camera()
     if not camera.open():
@@ -30,7 +32,7 @@ def run_live():
         camera.close()
         return
 
-    print("Pipeline running - tap screen to switch views")
+    print("Pipeline running")
 
     try:
         running = True
@@ -48,10 +50,11 @@ def run_live():
                 print(f"Detection error: {e}")
                 continue
 
-            contacts = detections_to_contacts(
+            raw_contacts = detections_to_contacts(
                 detections, config.CAM_WIDTH, camera.timestamp_ns
             )
 
+            contacts = tracker.update(raw_contacts)
             renderer.render(contacts)
     finally:
         detector.close()
@@ -62,14 +65,17 @@ def run_live():
 def run_synthetic():
     """Synthetic targets for desktop development."""
     from tools.synthetic_targets import SyntheticTargetGenerator
+    from track.sort import SortTracker
 
     renderer = Renderer()
     generator = SyntheticTargetGenerator()
+    tracker = SortTracker()
 
     running = True
     while running:
         running = renderer.handle_events()
-        contacts = generator.generate()
+        raw_contacts = generator.generate()
+        contacts = tracker.update(raw_contacts)
         renderer.render(contacts)
 
     renderer.shutdown()

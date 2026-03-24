@@ -110,8 +110,8 @@ USB cameras with software timestamp sync - MIPI CSI-2 cable length (~150mm limit
 ## Build Phases
 
 0. **Display Mock** - Complete. ACC-style radar with synthetic targets.
-1. **Lens Calibration** - Derive focal_length_pixels. Start with 6108 rectilinear (~85°) for clean validation, then swap to 2.1mm fisheye (~155°) for vehicle.
-2. **Single Camera Pipeline** (Config A) - Ingest, detection, monocular range, both sides live.
+1. **Lens Calibration** - Deferred. 6108 lens won't focus; 1.7mm fisheye attached. Checkerboard calibration attempted (high RMS). Empirical bearing LUT planned for on-car validation.
+2. **Single Camera Pipeline** (Config A) - In progress. Single-side ingest, YOLOv8m detection, monocular range working. Camera view with detection boxes available (touch switching disabled - Goodix noise).
 3. **Tracking** - SORT tracker, persistent IDs, coasting (extended to 2500ms when occluded), trail ghosting.
 4. **USB Profiling** (Config B prep) - Four cameras concurrent, measure interrupt overhead.
 5. **Vehicle Installation** (Config A) - RAM mounts, alignment tool on vehicle.

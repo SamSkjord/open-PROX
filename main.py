@@ -51,7 +51,7 @@ def run_live():
                 continue
 
             raw_contacts = detections_to_contacts(
-                detections, config.CAM_WIDTH, camera.timestamp_ns
+                detections, camera.frame_rgb.shape[1], camera.timestamp_ns
             )
 
             contacts = tracker.update(raw_contacts)

@@ -45,13 +45,17 @@ class TrackKF:
 
     def predict(self):
         self.x = self.F @ self.x
+        self.x[0] = self.x[0] % 360
         self.P = self.F @ self.P @ self.F.T + self.Q
 
     def update(self, angle_deg, range_m):
         z = np.array([angle_deg, range_m])
         y = z - self.H @ self.x
-        # Handle angle wrapping
-        y[0] = (y[0] + 180) % 360 - 180
+        # Handle angle wrapping: shortest path around the circle
+        if y[0] > 180:
+            y[0] -= 360
+        elif y[0] < -180:
+            y[0] += 360
         S = self.H @ self.P @ self.H.T + self.R
         K = self.P @ self.H.T @ np.linalg.inv(S)
         self.x = self.x + K @ y
@@ -131,7 +135,11 @@ class Track:
     @property
     def is_expired(self):
         elapsed_ms = self.time_since_update * (1000 / config.CAM_FPS)
-        return elapsed_ms > config.TRACK_DROP_MS
+        if elapsed_ms > config.TRACK_DROP_MS:
+            return True
+        if self.time_since_update > 0 and elapsed_ms > self.coast_limit_ms:
+            return True
+        return False
 
     def to_contact(self):
         """Export as a track-compatible contact dict for the renderer."""

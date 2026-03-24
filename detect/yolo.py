@@ -69,7 +69,6 @@ class YoloDetector:
         self.model_w = self.input_shape[1]
 
         self.configured_model = self.infer_model.configure().__enter__()
-        self._bindings = None
 
     def detect(self, frame_rgb):
         """Run detection on an RGB frame. Returns list of Detection objects."""

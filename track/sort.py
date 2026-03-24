@@ -154,8 +154,8 @@ class Track:
         vx = vr * math.sin(angle_rad) + va * math.cos(angle_rad)
         vy = vr * math.cos(angle_rad) - va * math.sin(angle_rad)
 
-        # Closing speed: rate of range decrease
-        closing_kph = -self.kf.v_range * config.CAM_FPS * 3.6
+        # Closing speed: v_range is in m/s, negative = approaching
+        closing_kph = -self.kf.v_range * 3.6
 
         return {
             "id": self.id,

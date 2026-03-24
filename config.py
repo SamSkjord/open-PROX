@@ -31,11 +31,13 @@ TRACK_DROP_MS = 1000
 OCCLUDED_COAST_MS = 2500
 
 # ── Camera ─────────────────────────────────────────────────────────
-CAM_DEVICE = 0                  # /dev/video index
 CAM_WIDTH = 1280
 CAM_HEIGHT = 720
 CAM_FPS = 30
-CAM_SIDE = "RIGHT"              # which side this camera covers
+# Config A: one camera per side. Set device index and side.
+# Config B: two cameras per side via USB hubs (future).
+CAM_RIGHT_DEVICE = 0            # /dev/video index for right camera
+CAM_LEFT_DEVICE = -1            # -1 = not connected
 
 # ── Detection ──────────────────────────────────────────────────────
 HAILO_MODEL_PATH = "/usr/share/hailo-models/yolov8m_h10.hef"

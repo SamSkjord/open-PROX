@@ -4,7 +4,7 @@ import math
 import config
 
 
-def estimate_range(detection, frame_width):
+def estimate_range(detection, frame_width, cam_side):
     """Estimate range to a detected vehicle using known-width method.
 
     Returns (range_m, angle_deg, side) or None if invalid.
@@ -26,17 +26,14 @@ def estimate_range(detection, frame_width):
 
     # Bearing: pixel position maps to angle from perpendicular
     # Frame centre = 90 deg (right side) or 270 deg (left side)
-    # Pixels ahead of centre = lower angle, behind = higher angle
     frame_centre_x = frame_width / 2.0
-    # Fraction of frame from centre (-1 to +1)
     x_frac = (detection.cx - frame_centre_x) / frame_centre_x
 
     # For a fisheye, the mapping is roughly linear: pixel offset ~ angle
-    # Half the FOV maps to the edge of the frame
     half_fov = config.LENS_FOV_DEG / 2.0
     bearing_offset = x_frac * half_fov
 
-    if config.CAM_SIDE == "RIGHT":
+    if cam_side == "RIGHT":
         angle_deg = (90.0 + bearing_offset) % 360
         side = "RIGHT"
     else:
@@ -46,11 +43,11 @@ def estimate_range(detection, frame_width):
     return range_m, angle_deg, side
 
 
-def detections_to_contacts(detections, frame_width, timestamp_ns):
+def detections_to_contacts(detections, frame_width, timestamp_ns, cam_side):
     """Convert a list of Detection objects into track-compatible contact dicts."""
     contacts = []
     for i, det in enumerate(detections):
-        result = estimate_range(det, frame_width)
+        result = estimate_range(det, frame_width, cam_side)
         if result is None:
             continue
         range_m, angle_deg, side = result

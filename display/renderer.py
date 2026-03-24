@@ -93,6 +93,16 @@ class Renderer:
             draw_contact(self.screen, pos, c,
                          config.BLIP_WIDTH_PX, config.BLIP_LENGTH_PX)
 
+        # Closing speed labels next to blips
+        for pos, c in zip(screen_positions, contacts):
+            closing = c.get("closing_kph", 0)
+            if c["state"] == "ACTIVE" and abs(closing) > 1.0:
+                label = f"{closing:+.0f}"
+                colour = (255, 160, 0) if closing > 0 else (100, 200, 100)
+                txt = self.font_hud.render(label, True, colour)
+                sx, sy = int(pos[0]), int(pos[1])
+                self.screen.blit(txt, (sx + config.BLIP_WIDTH_PX, sy - 7))
+
         draw_vehicle_icon(self.screen, self.cx, self.cy)
         self._draw_hud(contacts)
 

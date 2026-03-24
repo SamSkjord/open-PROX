@@ -6,9 +6,9 @@ import config
 
 
 class Camera:
-    def __init__(self, device=None, side=None):
-        self.device = device if device is not None else config.CAM_DEVICE
-        self.side = side or config.CAM_SIDE
+    def __init__(self, device, side):
+        self.device = device
+        self.side = side
         self.cap = None
         self.frame_rgb = None
         self.timestamp_ns = 0

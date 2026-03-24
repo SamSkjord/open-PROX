@@ -80,12 +80,12 @@ hailortcli fw-control identify
 Camera Ingest → Detection → Range Estimation → Tracking → Fusion → Display
 ```
 
-1. **Ingest** (`ingest/`): USB capture with buffer-arrival timestamps. Config B adds stereo timestamp pairing (16ms sync window at 120fps).
-2. **Detect** (`detect/`): HailoRT YOLO-nano for real targets, contour detector for bench testing. Lens model converts pixel coords to bearing angles.
-3. **Range** (`range/`): Monocular known-width estimation (v1, both configs). Stereo disparity (v2, Config B, 60mm baseline, reliable 3-8m). Radar fusion (v3, future).
-4. **Track** (`track/`): SORT with Kalman filters. Contacts coast for 500ms (2500ms if occluded), drop after 1000ms.
-5. **Fusion** (`fusion/`): Passthrough stub now, future radar CAN integration.
-6. **Display** (`display/`): ACC-style proximity radar - white car-shaped blips, orange proximity glow for close contacts, fading crosshairs, subtle range rings. 5m display range.
+1. **Ingest** (`ingest/camera.py`): USB V4L2 capture at 1280x720 MJPG 30fps. Monotonic timestamps on buffer arrival. Config B adds stereo timestamp pairing (16ms sync window at 120fps).
+2. **Detect** (`detect/yolo.py`): YOLOv8m on Hailo-10H via InferModel API. NMS postprocessing on-device. Filters to vehicle classes only (car, motorcycle, bus, truck). Falls back gracefully when Hailo unavailable.
+3. **Range** (`range/monocular.py`): Known-width estimation (`range = width_m * focal_px / bbox_px`). Bearing from pixel position using fisheye FOV mapping. Stereo disparity (v2, Config B, future). Radar fusion (v3, future).
+4. **Track** (`track/sort.py`): SORT with 4-state Kalman filter (angle, range, d_angle, d_range). Hungarian assignment with greedy fallback. Persistent IDs, velocity/closing speed estimation. Coasting 500ms (2500ms if occluded by adjacent track), drop after 1000ms.
+5. **Fusion** (`fusion/`): Not yet implemented. Future radar CAN integration.
+6. **Display** (`display/renderer.py`): ACC-style proximity radar with camera view toggle. Prox view: range rings, crosshairs, proximity glow, trails, blips, host vehicle, HUD. Camera view: letterboxed feed with detection boxes and range labels.
 
 ## Display Architecture (Phase 0 - implemented)
 
@@ -111,8 +111,8 @@ USB cameras with software timestamp sync - MIPI CSI-2 cable length (~150mm limit
 
 0. **Display Mock** - Complete. ACC-style radar with synthetic targets.
 1. **Lens Calibration** - Deferred. 6108 lens won't focus; 1.7mm fisheye attached. Checkerboard calibration attempted (high RMS). Empirical bearing LUT planned for on-car validation.
-2. **Single Camera Pipeline** (Config A) - In progress. Single-side ingest, YOLOv8m detection, monocular range working. Camera view with detection boxes available (touch switching disabled - Goodix noise).
-3. **Tracking** - SORT tracker, persistent IDs, coasting (extended to 2500ms when occluded), trail ghosting.
+2. **Single Camera Pipeline** (Config A) - Complete (single side). Ingest, YOLOv8m detection on Hailo-10H, monocular range estimation. Camera view with detection boxes available (touch switching disabled - Goodix noise). Tested on Pi 5 with live camera.
+3. **Tracking** - Complete. SORT tracker with Kalman filters, persistent IDs, velocity/closing speed estimation, coasting (500ms normal, 2500ms occluded), occlusion detection. Tested with synthetic targets.
 4. **USB Profiling** (Config B prep) - Four cameras concurrent, measure interrupt overhead.
 5. **Vehicle Installation** (Config A) - RAM mounts, alignment tool on vehicle.
 6. **Dual Camera + Stereo** (Config B) - Powered hubs, sync engine, stereo calibration.
@@ -120,13 +120,20 @@ USB cameras with software timestamp sync - MIPI CSI-2 cable length (~150mm limit
 
 ## Key Config Values
 
-Configuration lives in `config.py`. Currently contains display-only settings (Phase 0). Camera, detection, and tracking sections will be added in later phases.
+Configuration lives in `config.py`. Sections: display, blip geometry, proximity glow, range rings, coverage cones, tracking thresholds, camera, detection, range estimation.
 
 - `DISPLAY_RANGE_M`: Radar radius - 5m (tight ACC-style proximity view)
 - `DISPLAY_FPS`: Render rate - 60fps
 - `GLOW_RANGE_M`: Orange proximity warning threshold - 2m
 - `COVERAGE_CONES_ENABLED`: Camera FOV overlay - off by default
 - `OCCLUDED_COAST_MS`: Extended coast when adjacent track present - 2500ms
+- `CAM_DEVICE`: V4L2 device index - 0
+- `CAM_SIDE`: Which side this camera covers - "RIGHT"
+- `HAILO_MODEL_PATH`: YOLOv8m HEF for Hailo-10H
+- `DETECT_CONFIDENCE`: YOLO confidence threshold - 0.5
+- `VEHICLE_CLASS_IDS`: COCO classes {2, 3, 5, 7} (car, motorcycle, bus, truck)
+- `VEHICLE_WIDTH_M`: Assumed vehicle width for monocular range - 1.8m
+- `FOCAL_LENGTH_PX`: Approximate focal length for 1.7mm fisheye - 500px
 
 ## Track Data Structure
 

@@ -34,10 +34,15 @@ OCCLUDED_COAST_MS = 2500
 CAM_WIDTH = 1280
 CAM_HEIGHT = 720
 CAM_FPS = 30
-# Config A: one camera per side. Set device index and side.
-# Config B: two cameras per side via USB hubs (future).
-CAM_RIGHT_DEVICE = 0            # /dev/video index for right camera
+CAM_TYPE = "csi"                # "csi" for CSI (picamera2), "usb" for USB (V4L2)
+# CSI cameras: picamera2 index (0 = first CSI camera)
+CSI_RIGHT_DEVICE = 0
+CSI_LEFT_DEVICE = -1            # -1 = not connected
+# USB cameras: /dev/video index
+CAM_RIGHT_DEVICE = 0
 CAM_LEFT_DEVICE = -1            # -1 = not connected
+# Detection rate cap (Hz) - 0 = unlimited (threaded detection handles contention)
+DETECT_MAX_FPS = 0
 
 # ── Detection ──────────────────────────────────────────────────────
 HAILO_MODEL_PATH = "/usr/share/hailo-models/yolov8m_h10.hef"

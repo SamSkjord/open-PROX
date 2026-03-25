@@ -11,7 +11,8 @@ from display.contact_blip import draw_contact, draw_trail
 from display.proximity_glow import draw_proximity_glow
 
 VIEW_PROX = 0
-VIEW_CAMERA = 1
+VIEW_CAM_RIGHT = 1
+VIEW_CAM_LEFT = 2
 
 
 class Renderer:
@@ -33,20 +34,45 @@ class Renderer:
 
         self.view = VIEW_PROX
         self._camera_frame = None
-        self._last_tap_time = 0
+        self._touch_down_time = 0
+        self._touch_switched = False
+        self._TOUCH_HOLD_S = 2.0
+        self._camera_frames = {}  # side -> frame_rgb
 
-    def set_camera_frame(self, frame_rgb):
+    def set_camera_frame(self, frame_rgb, side="RIGHT"):
         """Store the latest camera frame for camera view."""
+        self._camera_frames[side] = frame_rgb
+        # Keep legacy single-frame for _render_camera
         self._camera_frame = frame_rgb
 
     def handle_events(self):
+        now = time.monotonic()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 return False
-            # Touch view switching disabled - touchscreen generates noise
-            # TODO: investigate Goodix driver config or use GPIO button instead
+            if event.type in (pygame.FINGERDOWN, pygame.MOUSEBUTTONDOWN):
+                self._touch_down_time = now
+                self._touch_switched = False
+            if event.type in (pygame.FINGERUP, pygame.MOUSEBUTTONUP):
+                # Quick tap (released before hold threshold) = back to prox
+                if not self._touch_switched and self.view != VIEW_PROX:
+                    self.view = VIEW_PROX
+                self._touch_down_time = 0
+                self._touch_switched = False
+
+        # Hold for 2s cycles through camera views
+        if self._touch_down_time > 0 and not self._touch_switched:
+            if (now - self._touch_down_time) >= self._TOUCH_HOLD_S:
+                self._touch_switched = True
+                if self.view == VIEW_PROX:
+                    self.view = VIEW_CAM_RIGHT
+                elif self.view == VIEW_CAM_RIGHT:
+                    self.view = VIEW_CAM_LEFT
+                else:
+                    self.view = VIEW_CAM_RIGHT
+
         return True
 
     def polar_to_screen(self, angle_deg, range_m):
@@ -56,8 +82,9 @@ class Renderer:
                 self.cy - px * math.cos(angle_rad))
 
     def render(self, contacts):
-        if self.view == VIEW_CAMERA:
-            self._render_camera(contacts)
+        if self.view in (VIEW_CAM_RIGHT, VIEW_CAM_LEFT):
+            side = "RIGHT" if self.view == VIEW_CAM_RIGHT else "LEFT"
+            self._render_camera(contacts, side)
         else:
             self._render_prox(contacts)
 
@@ -106,12 +133,12 @@ class Renderer:
         draw_vehicle_icon(self.screen, self.cx, self.cy)
         self._draw_hud(contacts)
 
-    def _render_camera(self, contacts):
+    def _render_camera(self, contacts, side="RIGHT"):
         """Render the camera feed with detection boxes."""
         self.screen.fill((0, 0, 0))
 
-        if self._camera_frame is not None:
-            frame = self._camera_frame
+        frame = self._camera_frames.get(side)
+        if frame is not None:
             fh, fw = frame.shape[:2]
             # Letterbox into display
             scale = config.DISPLAY_WIDTH / fw
@@ -144,8 +171,8 @@ class Renderer:
         # HUD overlay
         active = sum(1 for c in contacts if c.get("state") == "ACTIVE")
         hud_colour = (200, 200, 200)
-        count = self.font_hud.render(f"{active}", True, hud_colour)
-        self.screen.blit(count, (10, 10))
+        side_text = self.font_hud.render(side, True, hud_colour)
+        self.screen.blit(side_text, (10, 10))
         fps = self.clock.get_fps()
         fps_text = self.font_hud.render(f"{fps:.0f}", True, hud_colour)
         self.screen.blit(fps_text,

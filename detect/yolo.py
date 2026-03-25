@@ -68,7 +68,8 @@ class YoloDetector:
         self.model_h = self.input_shape[0]
         self.model_w = self.input_shape[1]
 
-        self.configured_model = self.infer_model.configure().__enter__()
+        self._configure_ctx = self.infer_model.configure()
+        self.configured_model = self._configure_ctx.__enter__()
 
     def detect(self, frame_rgb):
         """Run detection on an RGB frame. Returns list of Detection objects."""
@@ -127,8 +128,9 @@ class YoloDetector:
         return detections
 
     def close(self):
-        if self.configured_model is not None:
-            self.configured_model.__exit__(None, None, None)
+        if self._configure_ctx is not None:
+            self._configure_ctx.__exit__(None, None, None)
+            self._configure_ctx = None
             self.configured_model = None
         if self.vdevice is not None:
             self.vdevice.release()

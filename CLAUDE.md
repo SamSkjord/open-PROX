@@ -80,8 +80,8 @@ hailortcli fw-control identify
 Camera Ingest → Detection → Range Estimation → Tracking → Fusion → Display
 ```
 
-1. **Ingest** (`ingest/camera.py`): USB V4L2 capture at 1280x720 MJPG 30fps. Monotonic timestamps on buffer arrival. Config B adds stereo timestamp pairing (16ms sync window at 120fps).
-2. **Detect** (`detect/yolo.py`): YOLOv8m on Hailo-10H via InferModel API. NMS postprocessing on-device. Filters to vehicle classes only (car, motorcycle, bus, truck). Falls back gracefully when Hailo unavailable.
+1. **Ingest** (`ingest/csi_camera.py`, `ingest/camera.py`): CSI capture via picamera2 (OV9281 monochrome, RGB888 output) or USB V4L2 at 1280x720. Monotonic timestamps on buffer arrival. `CAM_TYPE` in config selects backend.
+2. **Detect** (`detect/yolo.py`): YOLOv8m on Hailo-10H via InferModel API. Runs in a background thread to prevent DMA conflicts with KMSDRM display. NMS postprocessing on-device. Filters to vehicle classes only (car, motorcycle, bus, truck). Auto-recovers on Hailo session drops.
 3. **Range** (`range/monocular.py`): Known-width estimation (`range = width_m * focal_px / bbox_px`). Bearing from pixel position using fisheye FOV mapping. Stereo disparity (v2, Config B, future). Radar fusion (v3, future).
 4. **Track** (`track/sort.py`): SORT with 4-state Kalman filter (angle, range, d_angle, d_range). Hungarian assignment with greedy fallback. Persistent IDs, velocity/closing speed estimation. Coasting 500ms (2500ms if occluded by adjacent track), drop after 1000ms.
 5. **Fusion** (`fusion/`): Not yet implemented. Future radar CAN integration.
@@ -91,7 +91,7 @@ Camera Ingest → Detection → Range Estimation → Tracking → Fusion → Dis
 
 The display replicates the ACC proximity radar aesthetic:
 
-- **Renderer** (`display/renderer.py`): Pygame 720x720 orchestrator. Pre-renders crosshairs at init. Manages trail history per track ID. Composites layers: range rings → crosshairs → coverage cones → proximity glow → trails → blips → host vehicle → HUD.
+- **Renderer** (`display/renderer.py`): Pygame 720x720 orchestrator. Pre-renders crosshairs at init. Manages trail history per track ID. Composites layers: range rings -> crosshairs -> coverage cones -> proximity glow -> trails -> blips -> host vehicle -> HUD. Touch-and-hold 2s cycles camera views (RIGHT/LEFT), quick tap returns to prox radar.
 - **Contact blips** (`display/contact_blip.py`): White rotated car-shaped polygons. Heading derived from velocity vector. Coasted contacts rendered in grey.
 - **Proximity glow** (`display/proximity_glow.py`): Orange radial glow around contacts within `GLOW_RANGE_M`. Intensity and radius scale with proximity.
 - **Coverage cones** (`display/coverage_cone.py`): Semi-transparent orange FOV arcs (left at 270°, right at 90°). Off by default.
@@ -102,8 +102,9 @@ Coordinate system: centre = host vehicle, up = forward. Polar `(angle_deg, range
 
 ## Camera Configurations
 
-- **Config A (v1 target):** One camera per side, direct to USB 3.0 ports. Monocular range only.
-- **Config B (v2):** Two cameras per side via powered USB 2.0 hubs on USB 3.0 ports. Adds stereo depth.
+- **Current:** OV9281 monochrome CSI camera (120-degree FOV, global shutter), connected to CAM0 port via 22-pin FPC. Pi 5 config.txt requires `dtoverlay=ov9281,cam0` (cam0 parameter maps to the port not used by DSI display).
+- **Config A (v1 target):** One camera per side, monocular range only.
+- **Config B (v2):** Two cameras per side. Adds stereo depth.
 
 USB cameras with software timestamp sync - MIPI CSI-2 cable length (~150mm limit) rules out CamArray for cabin-mounted Pi with cameras at bodywork. Permanent install uses through-mount: bare board cameras in ASA enclosures, only M12 lens protruding through grommetted bodywork hole.
 
@@ -111,7 +112,7 @@ USB cameras with software timestamp sync - MIPI CSI-2 cable length (~150mm limit
 
 0. **Display Mock** - Complete. ACC-style radar with synthetic targets.
 1. **Lens Calibration** - Deferred. 6108 lens won't focus; 1.7mm fisheye attached. Checkerboard calibration attempted (high RMS). Empirical bearing LUT planned for on-car validation.
-2. **Single Camera Pipeline** (Config A) - Complete (single side). Ingest, YOLOv8m detection on Hailo-10H, monocular range estimation. Camera view with detection boxes available (touch switching disabled - Goodix noise). Tested on Pi 5 with live camera.
+2. **Single Camera Pipeline** (Config A) - Complete (single side). CSI ingest via picamera2, YOLOv8m detection on Hailo-10H (threaded), monocular range estimation. Camera view with detection boxes available via touch-and-hold. Tested on Pi 5 with OV9281 CSI camera.
 3. **Tracking** - Complete. SORT tracker with Kalman filters, persistent IDs, velocity/closing speed estimation, coasting (500ms normal, 2500ms occluded), occlusion detection. Tested with synthetic targets.
 4. **USB Profiling** (Config B prep) - Four cameras concurrent, measure interrupt overhead.
 5. **Vehicle Installation** (Config A) - RAM mounts, alignment tool on vehicle.
@@ -127,8 +128,10 @@ Configuration lives in `config.py`. Sections: display, blip geometry, proximity 
 - `GLOW_RANGE_M`: Orange proximity warning threshold - 2m
 - `COVERAGE_CONES_ENABLED`: Camera FOV overlay - off by default
 - `OCCLUDED_COAST_MS`: Extended coast when adjacent track present - 2500ms
-- `CAM_DEVICE`: V4L2 device index - 0
-- `CAM_SIDE`: Which side this camera covers - "RIGHT"
+- `CAM_TYPE`: Camera backend - "csi" (picamera2) or "usb" (V4L2)
+- `CSI_RIGHT_DEVICE` / `CSI_LEFT_DEVICE`: picamera2 camera index (-1 = not connected)
+- `CAM_RIGHT_DEVICE` / `CAM_LEFT_DEVICE`: V4L2 device index (-1 = not connected)
+- `DETECT_MAX_FPS`: Detection rate cap - 0 = unlimited
 - `HAILO_MODEL_PATH`: YOLOv8m HEF for Hailo-10H
 - `DETECT_CONFIDENCE`: YOLO confidence threshold - 0.5
 - `VEHICLE_CLASS_IDS`: COCO classes {2, 3, 5, 7} (car, motorcycle, bus, truck)
@@ -144,6 +147,9 @@ Each tracked contact is a dict with: `id`, `side` (LEFT/RIGHT/BOTH), `angle_deg`
 - Timestamps captured on buffer arrival, before MJPG decode.
 - Monocular range: `range = (known_width * focal_length_px) / bbox_width_px`, switching to height-based when aspect ratio indicates head-on approach.
 - Stereo sync is software timestamp pairing (no hardware sync on OV9281 UVC), 16ms acceptance window.
-- Waveshare display driver is kernel-version specific - `install.sh` pins the kernel with `apt-mark hold`.
+- Waveshare display worked out-of-the-box on kernel 6.12.75 without pinning. Kernel hold removed.
+- Detection runs in a background thread - Hailo PCIe DMA and KMSDRM page flips conflict when on the same thread, causing HAILO_COMMUNICATION_CLOSED errors.
+- Pi 5 CSI/DSI port mapping: `dtoverlay=ov9281,cam0` maps camera to the port NOT used by the Waveshare DSI display. Without `cam0`, both land on the same port.
+- picamera2 must be symlinked into the venv along with its dependencies (libcamera, videodev2, prctl, etc.) since it's installed as a system package.
 - System is fully independent from openTPT; future radar fusion is passive CAN RX only.
 - Occlusion handling: extended coast (2500ms vs 500ms) when track drops with adjacent active track present. No separate occlusion reasoning layer.

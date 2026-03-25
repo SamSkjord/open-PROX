@@ -12,9 +12,9 @@ The full project plan lives in `open-PROX-project-plan-v5.md`.
 
 - **Platform:** Raspberry Pi 5 (2GB, upgrading to 8GB if needed) + Hailo-10H AI HAT+ 2 (40 TOPS)
 - **Language:** Python
-- **Vision:** OpenCV (capture, calibration, stereo), HailoRT (YOLO-nano inference)
+- **Vision:** OpenCV (capture, calibration, stereo), HailoRT (YOLOv8m inference)
 - **Display:** Pygame (720x720, 60fps render loop)
-- **Cameras:** Arducam B0332 - OV9281 global shutter monochrome, 120fps 720p MJPG, USB 2.0
+- **Cameras:** OV9281 global shutter monochrome, 120-degree FOV, CSI (picamera2) or USB (V4L2) via config
 - **Display hardware:** Waveshare 4" DSI LCD (C), connected via DSI + JST-PH 4-pin (not pogo pins)
 
 ## Commands
@@ -73,6 +73,8 @@ hailortcli fw-control identify
 ```
 
 **Key detail:** Both `hailo_pci` (Hailo-8) and `hailo1x_pci` (Hailo-10H) drivers ship in the package. They conflict on the `hailo_chardev` sysfs class name. Blacklisting `hailo_pci` is required for `/dev/hailo0` to appear.
+
+**PCIe Gen3 required:** The AI HAT+ 2 requires explicit Gen3 enablement in config.txt: `dtparam=pciex1_gen=3`. Without this, PCIe link training is unreliable and the Hailo firmware upload fails intermittently ("Timeout waiting for firmware file on stage 2/3"). See https://www.raspberrypi.com/documentation/computers/ai.html#PCIe-Gen-3
 
 ## Pipeline Architecture
 
@@ -149,7 +151,9 @@ Each tracked contact is a dict with: `id`, `side` (LEFT/RIGHT/BOTH), `angle_deg`
 - Stereo sync is software timestamp pairing (no hardware sync on OV9281 UVC), 16ms acceptance window.
 - Waveshare display worked out-of-the-box on kernel 6.12.75 without pinning. Kernel hold removed.
 - Detection runs in a background thread - Hailo PCIe DMA and KMSDRM page flips conflict when on the same thread, causing HAILO_COMMUNICATION_CLOSED errors.
+- Hailo-10H has no onboard flash - firmware (~90MB) is DMA-transferred from host over PCIe every boot. Requires `dtparam=pciex1_gen=3` for reliable link training. SIGTERM handler ensures clean VDevice release on shutdown.
 - Pi 5 CSI/DSI port mapping: `dtoverlay=ov9281,cam0` maps camera to the port NOT used by the Waveshare DSI display. Without `cam0`, both land on the same port.
 - picamera2 must be symlinked into the venv along with its dependencies (libcamera, videodev2, prctl, etc.) since it's installed as a system package.
+- HUD shows Hailo status (INIT/DOWN/RESET) at bottom of prox view when detection is unavailable. Detect thread retries every 10s with PCIe bus reset fallback.
 - System is fully independent from openTPT; future radar fusion is passive CAN RX only.
 - Occlusion handling: extended coast (2500ms vs 500ms) when track drops with adjacent active track present. No separate occlusion reasoning layer.

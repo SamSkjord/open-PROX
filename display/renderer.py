@@ -38,6 +38,7 @@ class Renderer:
         self._touch_switched = False
         self._TOUCH_HOLD_S = 2.0
         self._camera_frames = {}  # side -> frame_rgb
+        self.detect_status = "INIT"  # INIT, OK, ERROR, RECOVERING
 
     def set_camera_frame(self, frame_rgb, side="RIGHT"):
         """Store the latest camera frame for camera view."""
@@ -223,6 +224,20 @@ class Renderer:
         fps_text = self.font_hud.render(f"{fps:.0f}", True, hud_colour)
         self.screen.blit(fps_text,
                          (config.DISPLAY_WIDTH - fps_text.get_width() - 10, 10))
+
+        # Detection status indicator
+        if self.detect_status != "OK":
+            status_colours = {
+                "INIT": (100, 100, 100),
+                "ERROR": (200, 50, 50),
+                "RECOVERING": (200, 150, 0),
+            }
+            colour = status_colours.get(self.detect_status, (200, 50, 50))
+            label = {"INIT": "HAILO INIT", "ERROR": "HAILO DOWN",
+                     "RECOVERING": "HAILO RESET"}.get(self.detect_status, "HAILO ?")
+            txt = self.font_hud.render(label, True, colour)
+            self.screen.blit(txt, (config.DISPLAY_WIDTH // 2 - txt.get_width() // 2,
+                                   config.DISPLAY_HEIGHT - 24))
 
     def _build_crosshairs(self):
         """Pre-render crosshairs that are bright at centre and fade to transparent."""

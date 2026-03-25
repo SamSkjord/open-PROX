@@ -34,7 +34,7 @@ OCCLUDED_COAST_MS = 2500
 CAM_WIDTH = 1280
 CAM_HEIGHT = 720
 CAM_FPS = 30
-CAM_TYPE = "csi"                # "csi" for CSI (picamera2), "usb" for USB (V4L2)
+CAM_TYPE = "usb"                # "csi" for CSI (picamera2), "usb" for USB (V4L2)
 # CSI cameras: picamera2 index (0 = first CSI camera)
 CSI_RIGHT_DEVICE = 0
 CSI_LEFT_DEVICE = -1            # -1 = not connected

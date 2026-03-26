@@ -50,8 +50,9 @@ sudo apt-get install -y \
   python3-dev build-essential \
   hailo-h10-all
 
-# 4. Blacklist Hailo-8 driver
+# 4. Blacklist Hailo-8 driver + disable PCIe ASPM
 echo 'blacklist hailo_pci' | sudo tee /etc/modprobe.d/hailo-blacklist.conf
+sudo sed -i 's/$/ pcie_aspm=off/' /boot/firmware/cmdline.txt
 sudo reboot
 
 # 5. Verify Hailo
@@ -66,8 +67,11 @@ python3 -m venv ~/prox-env
 SITE=$(~/prox-env/bin/python3 -c 'import site; print(site.getsitepackages()[0])')
 ln -sf /usr/lib/python3/dist-packages/hailo_platform $SITE/hailo_platform
 
-# 8. Deploy code (from dev machine)
-scp -r display/ tools/ detect/ ingest/ range/ track/ fusion/ *.py requirements.txt pi@<PI_IP>:~/open-PROX/
+# 8. Deploy code (use git clone, NOT scp - scp from Windows introduces null bytes)
+git clone https://github.com/SamSkjord/open-PROX.git ~/open-PROX
+# After code changes, use: cd ~/open-PROX && git pull
+# IMPORTANT: clear __pycache__ after any redeployment:
+find ~/open-PROX -name "__pycache__" -exec rm -rf {} + 2>/dev/null
 ```
 
 **Key details:**
@@ -78,6 +82,10 @@ scp -r display/ tools/ detect/ ingest/ range/ track/ fusion/ *.py requirements.t
 - `opencv-python-headless` must be <4.11 to remain compatible with numpy <2.0.
 - Both `hailo_pci` (Hailo-8) and `hailo1x_pci` (Hailo-10H) drivers ship in the package. They conflict on `hailo_chardev`. Blacklisting `hailo_pci` is required for `/dev/hailo0` to appear.
 - Do NOT manually set `dtparam=pciex1_gen=3` - the AI HAT+ 2 auto-negotiates Gen3. Forcing it can cause instability.
+- Add `pcie_aspm=off` to `/boot/firmware/cmdline.txt` - PCIe power management causes Hailo DMA drops under sustained load.
+- Deploy code via `git clone` / `git pull`, NOT `scp` from Windows. SCP introduces null bytes that corrupt Python files. Always clear `__pycache__` after redeployment.
+- Multiprocessing uses `spawn` start method (set in `__main__` guard). `fork` causes SIGBUS with KMSDRM.
+- **Known issue:** Hailo-10H firmware crashes (HAILO_COMMUNICATION_CLOSED) after ~3 minutes of continuous inference. This is a hardware/firmware bug in hailo_platform 5.1.1, confirmed via bare stress test with no camera or display. Reported to Hailo community forum - investigating. Pipeline degrades gracefully, showing "HAILO DOWN" on HUD.
 
 ## Pipeline Architecture
 

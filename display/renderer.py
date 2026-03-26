@@ -94,25 +94,13 @@ class Renderer:
 
     def _render_prox(self, contacts):
         self.screen.fill(config.DISPLAY_BG_COLOUR)
-
         self._draw_range_rings()
         self.screen.blit(self._crosshairs, (0, 0))
-
-        if config.COVERAGE_CONES_ENABLED:
-            draw_coverage_cones(self.screen, self.cx, self.cy,
-                                self.pixels_per_metre, config.LENS_FOV_DEG,
-                                config.DISPLAY_RANGE_M)
 
         screen_positions = [
             self.polar_to_screen(c["angle_deg"], c["range_m"])
             for c in contacts
         ]
-
-        draw_proximity_glow(self.screen, screen_positions, contacts,
-                            self.cx, self.cy,
-                            config.GLOW_COLOUR, config.GLOW_MAX_ALPHA,
-                            config.GLOW_RANGE_M, config.GLOW_RADIUS_PX,
-                            self.pixels_per_metre)
 
         self._update_trails(contacts)
         self._draw_trails(contacts)
@@ -121,7 +109,6 @@ class Renderer:
             draw_contact(self.screen, pos, c,
                          config.BLIP_WIDTH_PX, config.BLIP_LENGTH_PX)
 
-        # Closing speed labels next to blips
         for pos, c in zip(screen_positions, contacts):
             closing = c.get("closing_kph", 0)
             if c["state"] == "ACTIVE" and abs(closing) > 1.0:
@@ -240,32 +227,44 @@ class Renderer:
                                    config.DISPLAY_HEIGHT - 24))
 
     def _build_crosshairs(self):
-        """Pre-render crosshairs that are bright at centre and fade to transparent."""
-        w, h = config.DISPLAY_WIDTH, config.DISPLAY_HEIGHT
-        surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        colour = (70, 70, 70)
-        half_w, half_h = w // 2, h // 2
-        segments = 80
+        """Pre-render crosshairs as opaque lines on the background colour.
 
+        Avoids SRCALPHA surfaces which cause GPU DMA conflicts with the
+        Hailo PCIe VDMA on Pi 5 KMSDRM.
+        """
+        w, h = config.DISPLAY_WIDTH, config.DISPLAY_HEIGHT
+        surf = pygame.Surface((w, h))
+        surf.fill(config.DISPLAY_BG_COLOUR)
+        surf.set_colorkey(config.DISPLAY_BG_COLOUR)
+        half_w, half_h = w // 2, h // 2
+
+        # Draw crosshair lines with varying brightness (no alpha)
+        segments = 40
         for i in range(segments):
             t = i / segments
-            alpha = int(100 * max(0.0, 1.0 - t * t))
+            brightness = int(70 * max(0.0, 1.0 - t * t))
+            colour = (brightness, brightness, brightness)
+            if brightness < 10:
+                continue
             seg_len = half_w // segments
             x_start = half_w + i * seg_len
-            pygame.draw.line(surf, (*colour, alpha),
+            pygame.draw.line(surf, colour,
                              (x_start, half_h), (x_start + seg_len, half_h), 2)
-            pygame.draw.line(surf, (*colour, alpha),
+            pygame.draw.line(surf, colour,
                              (half_w - i * seg_len, half_h),
                              (half_w - (i + 1) * seg_len, half_h), 2)
 
         for i in range(segments):
             t = i / segments
-            alpha = int(100 * max(0.0, 1.0 - t * t))
+            brightness = int(70 * max(0.0, 1.0 - t * t))
+            colour = (brightness, brightness, brightness)
+            if brightness < 10:
+                continue
             seg_len = half_h // segments
             y_start = half_h + i * seg_len
-            pygame.draw.line(surf, (*colour, alpha),
+            pygame.draw.line(surf, colour,
                              (half_w, y_start), (half_w, y_start + seg_len), 2)
-            pygame.draw.line(surf, (*colour, alpha),
+            pygame.draw.line(surf, colour,
                              (half_w, half_h - i * seg_len),
                              (half_w, half_h - (i + 1) * seg_len), 2)
 

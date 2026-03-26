@@ -68,26 +68,29 @@ class YoloDetector:
         self.model_h = self.input_shape[0]
         self.model_w = self.input_shape[1]
 
+        # Store the context manager to prevent GC from closing the session
         self._configure_ctx = self.infer_model.configure()
         self.configured_model = self._configure_ctx.__enter__()
+
+        # Pre-allocate bindings to avoid per-frame allocation and FD leaks
+        self._output_buffers = {
+            out.name: np.empty(out.shape, dtype=np.float32)
+            for out in self.infer_model.outputs
+        }
+        self._bindings = self.configured_model.create_bindings(
+            output_buffers=self._output_buffers
+        )
 
     def detect(self, frame_rgb):
         """Run detection on an RGB frame. Returns list of Detection objects."""
         fh, fw = frame_rgb.shape[:2]
         input_data, scale, x_off, y_off = self._preprocess(frame_rgb)
 
-        # Reuse or create bindings
-        output_buffers = {
-            out.name: np.empty(out.shape, dtype=np.float32)
-            for out in self.infer_model.outputs
-        }
-        bindings = self.configured_model.create_bindings(output_buffers=output_buffers)
-        bindings.input().set_buffer(np.array(input_data))
-
-        self.configured_model.run([bindings], 30000)
+        self._bindings.input().set_buffer(np.array(input_data))
+        self.configured_model.run([self._bindings], 30000)
 
         if self.nms_output:
-            raw = bindings.output().get_buffer()
+            raw = self._bindings.output().get_buffer()
             return self._parse_nms(raw, scale, x_off, y_off, fw, fh)
         return []
 

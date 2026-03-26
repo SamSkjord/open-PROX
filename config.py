@@ -1,7 +1,7 @@
 # ── Display ────────────────────────────────────────────────────────
 DISPLAY_WIDTH = 720
 DISPLAY_HEIGHT = 720
-DISPLAY_FPS = 60
+DISPLAY_FPS = 30
 DISPLAY_RANGE_M = 5.0
 DISPLAY_BG_COLOUR = (8, 8, 8)
 

@@ -10,7 +10,6 @@ via shared memory / multiprocessing primitives.
 """
 
 import time
-import multiprocessing as mp
 import config
 from display.renderer import Renderer
 
@@ -122,6 +121,7 @@ def _detect_worker(frame_queue, result_queue, stop_event):
 
 def run_live():
     """Live camera pipeline: ingest -> detect -> range -> fuse -> track -> display."""
+    import multiprocessing as mp
     from range.monocular import detections_to_contacts
     from detect.yolo import Detection
     from fusion.passthrough import fuse
@@ -258,6 +258,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # KMSDRM + fork = Bus error on Pi 5. Must use spawn for multiprocessing.
+    import multiprocessing as mp
     mp.set_start_method("spawn")
     main()

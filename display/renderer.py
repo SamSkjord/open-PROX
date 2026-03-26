@@ -102,6 +102,12 @@ class Renderer:
             for c in contacts
         ]
 
+        draw_proximity_glow(self.screen, screen_positions, contacts,
+                            self.cx, self.cy,
+                            config.GLOW_COLOUR, config.GLOW_MAX_ALPHA,
+                            config.GLOW_RANGE_M, config.GLOW_RADIUS_PX,
+                            self.pixels_per_metre)
+
         self._update_trails(contacts)
         self._draw_trails(contacts)
 

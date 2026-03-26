@@ -42,7 +42,7 @@ def draw_trail(surface, positions, state):
         return
     base = _COLOUR_COASTED if state == "COASTED" else (180, 180, 180)
     for i, (x, y) in enumerate(positions):
-        fade = (15 + 40 * i / n) / 255.0
+        fade = 0.15 + 0.55 * (i / n)
         r = 2
         c = (int(base[0] * fade), int(base[1] * fade), int(base[2] * fade))
         pygame.draw.circle(surface, c, (int(x), int(y)), r)

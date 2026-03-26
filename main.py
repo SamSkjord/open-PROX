@@ -14,6 +14,9 @@ import multiprocessing as mp
 import config
 from display.renderer import Renderer
 
+# KMSDRM + fork = Bus error on Pi 5. Must use spawn.
+mp.set_start_method("spawn", force=True)
+
 
 def _open_cameras():
     """Open cameras based on CAM_TYPE config. Returns list of camera objects."""

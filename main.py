@@ -9,13 +9,13 @@ pygame's GPU DMA operations. The two share frame data and results
 via shared memory / multiprocessing primitives.
 """
 
-import time
 import multiprocessing as mp
+# KMSDRM + fork = Bus error on Pi 5. Must be set before any other imports.
+mp.set_start_method("spawn", force=True)
+
+import time
 import config
 from display.renderer import Renderer
-
-# KMSDRM + fork = Bus error on Pi 5. Must use spawn.
-mp.set_start_method("spawn", force=True)
 
 
 def _open_cameras():

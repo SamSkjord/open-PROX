@@ -37,7 +37,7 @@ class Renderer:
         self.trails = {}
         self._crosshairs = self._build_crosshairs()
 
-        self.view = VIEW_PROX
+        self.view = VIEW_CAM_RIGHT
         self._camera_frame = None
         self._touch_down_time = 0
         self._touch_switched = False

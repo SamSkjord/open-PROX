@@ -3,15 +3,12 @@ import os
 import time
 from collections import deque
 
-# Use dummy video driver - we render to framebuffer directly
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 import pygame
 
 import config
 from display.vehicle_icon import draw_vehicle_icon
 from display.coverage_cone import draw_coverage_cones
 from display.contact_blip import draw_contact, draw_trail
-from display.framebuffer import fb_init, fb_update, fb_close
 from display.proximity_glow import draw_proximity_glow
 
 VIEW_PROX = 0
@@ -22,11 +19,10 @@ VIEW_CAM_LEFT = 2
 class Renderer:
     def __init__(self):
         pygame.init()
-        # Use a dummy display - actual output goes via framebuffer
         self.screen = pygame.display.set_mode(
             (config.DISPLAY_WIDTH, config.DISPLAY_HEIGHT)
         )
-        fb_init()
+        pygame.display.set_caption("open-PROX")
         self.clock = pygame.time.Clock()
         self.font_hud = pygame.font.SysFont("consolas", 14)
 
@@ -37,7 +33,7 @@ class Renderer:
         self.trails = {}
         self._crosshairs = self._build_crosshairs()
 
-        self.view = VIEW_CAM_RIGHT
+        self.view = VIEW_PROX
         self._camera_frame = None
         self._touch_down_time = 0
         self._touch_switched = False
@@ -94,7 +90,7 @@ class Renderer:
         else:
             self._render_prox(contacts)
 
-        fb_update(self.screen)
+        pygame.display.flip()
         self.clock.tick(config.DISPLAY_FPS)
 
     def _render_prox(self, contacts):
@@ -282,5 +278,4 @@ class Renderer:
         return surf
 
     def shutdown(self):
-        fb_close()
         pygame.quit()

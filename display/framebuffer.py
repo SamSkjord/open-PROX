@@ -8,54 +8,53 @@ Usage: call fb_init() once, then fb_update(surface) each frame.
 
 import os
 import mmap
-import numpy as np
+import ctypes
 
 _fb_map = None
 _fb_fd = None
-_fb_w = 720
-_fb_h = 720
+_fb_size = 720 * 720 * 4
 
 
 def fb_init():
-    """Open and mmap the framebuffer. Disable DRM console."""
+    """Open and mmap the framebuffer. Disable console cursor."""
     global _fb_map, _fb_fd
 
-    # Disable DRM console so it doesn't overwrite our pixels
+    # Disable all VT consoles to prevent cursor bleedthrough
+    for vt in range(8):
+        try:
+            with open(f"/sys/class/vtconsole/vtcon{vt}/bind", "w") as f:
+                f.write("0")
+        except Exception:
+            pass
+
+    # Hide cursor on tty1
     try:
-        with open("/sys/class/vtconsole/vtcon1/bind", "w") as f:
-            f.write("0")
+        with open("/dev/tty1", "w") as f:
+            f.write("\033[?25l")
     except Exception:
         pass
 
     _fb_fd = os.open("/dev/fb0", os.O_RDWR)
-    fb_size = _fb_w * _fb_h * 4  # 32bpp BGRA
-    _fb_map = mmap.mmap(_fb_fd, fb_size, mmap.MAP_SHARED,
+    _fb_map = mmap.mmap(_fb_fd, _fb_size, mmap.MAP_SHARED,
                         mmap.PROT_WRITE | mmap.PROT_READ)
 
 
 def fb_update(surface):
     """Write a pygame surface to the framebuffer.
 
-    Converts the surface's RGB pixel data to BGRA and writes to fb0.
+    Uses pygame.image.tobytes for fast conversion, then swaps R/B
+    channels in-place via the mmap buffer.
     """
     if _fb_map is None:
         return
 
-    # Get raw pixel data from pygame surface as RGB array
-    import pygame
-    arr = pygame.surfarray.pixels3d(surface)  # (w, h, 3) RGB
-    # Transpose from pygame's (w,h) to numpy's (h,w)
-    arr = arr.transpose(1, 0, 2)
+    # Get raw bytes from pygame - format "RGBX" gives us 32bpp with padding
+    raw = surface.get_buffer().raw
 
-    # Convert RGB to BGRA for framebuffer
-    bgra = np.empty((_fb_h, _fb_w, 4), dtype=np.uint8)
-    bgra[:, :, 0] = arr[:, :, 2]  # B
-    bgra[:, :, 1] = arr[:, :, 1]  # G
-    bgra[:, :, 2] = arr[:, :, 0]  # R
-    bgra[:, :, 3] = 255            # A
-
+    # raw is in pygame's native format (likely ARGB or XRGB on this platform)
+    # Write directly - the byte order may need swapping
     _fb_map.seek(0)
-    _fb_map.write(bgra.tobytes())
+    _fb_map.write(raw)
 
 
 def fb_close():

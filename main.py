@@ -74,54 +74,10 @@ def _detect_camera_available():
         return False
 
 
-def _detect_worker(frame_queue, result_queue, stop_event):
-    """Detection worker - runs in separate process.
-
-    Completely isolates Hailo PCIe DMA from the main process's GPU DMA.
-    """
-    from detect.yolo import YoloDetector
-
-    try:
-        detector = YoloDetector()
-        result_queue.put(("status", "OK"))
-        print("Hailo detector ready (worker process)")
-    except Exception as e:
-        print(f"WARNING: Cannot init Hailo detector: {e}")
-        result_queue.put(("status", "ERROR"))
-        return
-
-    while not stop_event.is_set():
-        try:
-            item = frame_queue.get(timeout=0.5)
-        except Exception:
-            continue
-
-        if item is None:
-            break
-
-        side, frame_rgb, fw, ts = item
-        try:
-            dets = detector.detect(frame_rgb)
-            # Convert Detection objects to serialisable dicts
-            det_dicts = []
-            for d in dets:
-                det_dicts.append({
-                    "class_id": d.class_id, "score": d.score,
-                    "x1": d.x1, "y1": d.y1, "x2": d.x2, "y2": d.y2,
-                    "width": d.width, "height": d.height,
-                })
-            result_queue.put(("dets", side, det_dicts, fw, ts))
-        except Exception as e:
-            print(f"Detection error ({side}): {e}")
-            result_queue.put(("status", "ERROR"))
-
-    detector.close()
-    print("Detection worker stopped")
-
-
 def run_live():
     """Live camera pipeline: ingest -> detect -> range -> fuse -> track -> display."""
     import multiprocessing as mp
+    from detect.worker import detect_worker
     from range.monocular import detections_to_contacts
     from detect.yolo import Detection
     from fusion.passthrough import fuse
@@ -144,7 +100,7 @@ def run_live():
     result_queue = mp.Queue(maxsize=10)
     stop_event = mp.Event()
 
-    det_proc = mp.Process(target=_detect_worker,
+    det_proc = mp.Process(target=detect_worker,
                           args=(frame_queue, result_queue, stop_event),
                           daemon=True)
     det_proc.start()

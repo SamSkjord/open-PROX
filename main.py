@@ -11,7 +11,6 @@ via shared memory / multiprocessing primitives.
 
 import time
 import config
-from display.renderer import Renderer
 
 
 def _open_cameras():
@@ -77,6 +76,7 @@ def _detect_camera_available():
 def run_live():
     """Live camera pipeline: ingest -> detect -> range -> fuse -> track -> display."""
     import multiprocessing as mp
+    from display.renderer import Renderer
     from detect.worker import detect_worker
     from range.monocular import detections_to_contacts
     from detect.yolo import Detection
@@ -179,6 +179,7 @@ def run_live():
 
 def run_synthetic():
     """Synthetic targets for desktop development."""
+    from display.renderer import Renderer
     from tools.synthetic_targets import SyntheticTargetGenerator
     from track.sort import SortTracker
 

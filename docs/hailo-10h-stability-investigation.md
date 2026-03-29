@@ -90,16 +90,63 @@ However, the bare stress test (no pygame at all) still crashes, proving the GPU 
 3. **Pre-rendered glow sprites**: Reduces GPU DMA load, extending runtime slightly
 4. **Multiprocessing isolation**: Detection runs in a separate process. Doesn't fix the crash but isolates the failure cleanly
 
+## Update: 2026-03-29
+
+### HailoRT 5.2.0 fixes standalone crash
+
+Installed 5.2.0 driver and runtime from Hailo developer zone .deb files. Required Python 3.12 built from source (Trixie ships 3.13, the 5.2.0 wheel is cp312 only).
+
+Bare stress test: **11773 frames, 5 minutes, 0 errors** (vs 5334 frames crash on 5.1.1).
+Camera + Hailo (no display): **7754 frames, 5 minutes, 0 errors**.
+
+### DRM/GPU conflict identified
+
+With 5.2.0, the Hailo still crashes immediately when pygame renders via KMSDRM. The conflict is between DRM page flips and Hailo PCIe VDMA at the kernel level. Confirmed by:
+- card0 (rp1dsi - DSI controller, no GPU)
+- card1 (v3d - GPU) - blacklisting this delays but doesn't fix the crash
+- card2 (vc6 - video core/HDMI)
+
+Even with V3D blacklisted and process isolation (multiprocessing spawn), KMSDRM display kills Hailo.
+
+### Framebuffer workaround
+
+Bypassing DRM entirely by writing directly to `/dev/fb0` via mmap:
+- SDL dummy driver for pygame surface operations (no DRM, no GPU)
+- Raw BGRA pixel writes to the DSI framebuffer
+- **5 minutes, zero Hailo errors** - confirmed working
+
+Trade-offs:
+- No touch input (SDL dummy driver has no input handling) - needs evdev reader
+- Lower framerate (CPU pixel copy vs GPU compositing)
+- Console cursor bleedthrough (partially fixed by unbinding VT consoles)
+
+### Package state for 5.2.0
+
+```
+hailort               5.2.0  (from .deb)
+hailort-pcie-driver   5.2.0  (from .deb, DKMS built for 6.12.75)
+hailo-tappas-core     5.2.0  (from .deb)
+hailo-gen-ai-model-zoo 5.2.0 (from .deb)
+hailo-models          1.0.0-2 (from apt, .hef files)
+Python:               3.12.9 (built from source, venv ~/prox-env-312)
+hailort wheel:        5.2.0-cp312 (in 3.12 venv)
+Firmware:             /lib/firmware/hailo/hailo10h/ (from old h10-hailort-pcie-driver 5.1.1)
+Kernel:               6.12.75+rpt-rpi-2712
+V3D:                  blacklisted in /etc/modprobe.d/v3d-blacklist.conf
+```
+
+Note: numpy must be <2.0, opencv-python-headless <4.11.
+
 ## Status
 
-Reported to Hailo community forum on 2026-03-26. Hailo staff confirmed they are investigating internally. Awaiting response with fix, firmware update, or RMA instructions.
+Reported to Hailo community forum on 2026-03-26. Follow-up posted 2026-03-29 with DRM/GPU conflict details. Hailo staff recommended 5.2.0 upgrade.
 
 Forum thread: "Hailo-10H COMMUNICATION_CLOSED after ~5000 frames of continuous inference (AI HAT+ 2, Pi 5)"
 
 ## Recommendations for Next Steps
 
-1. **Wait for Hailo response** - they may have a firmware patch or identify a hardware defect
-2. **Try HailoRT 4.23 with correct Hailo-10H firmware** - the 4.23 release has "stability fixes" and "better memory and buffer management" but the h10 firmware packaging is broken
-3. **Test on Pi 5 8GB** - more system memory might help with DMA buffer allocation
-4. **Try a different HAT unit** - if Hailo confirms hardware issue
-5. **Consider Hailo-8L** as fallback - simpler firmware loading, more mature driver, but lower TOPS
+1. **Add evdev touch input** - replace pygame's event handling with direct `/dev/input/event1` reading (Goodix touchscreen)
+2. **Optimize framebuffer write** - current CPU pixel copy is slow, consider pre-allocated buffers or ctypes memcpy
+3. **Fix console cursor bleedthrough** - VT unbind works but resets on reboot, add to startup
+4. **Wait for Hailo response** on DRM conflict - they may have a kernel driver fix
+5. **Test on Pi 5 8GB** - more headroom for DMA buffers

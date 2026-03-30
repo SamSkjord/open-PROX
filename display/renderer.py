@@ -141,7 +141,7 @@ class Renderer:
 
             import cv2
             resized = cv2.resize(frame, (config.DISPLAY_WIDTH, disp_h))
-            surf = pygame.surfarray.make_surface(resized.swapaxes(0, 1))
+            surf = pygame.image.frombuffer(resized.tobytes(), (config.DISPLAY_WIDTH, disp_h), "RGB")
             self.screen.blit(surf, (0, y_off))
 
             # Draw detection boxes

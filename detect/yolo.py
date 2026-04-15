@@ -87,7 +87,9 @@ class YoloDetector:
         input_data, scale, x_off, y_off = self._preprocess(frame_rgb)
 
         self._bindings.input().set_buffer(np.array(input_data))
-        self.configured_model.run([self._bindings], 30000)
+        self.configured_model.wait_for_async_ready(1000)
+        job = self.configured_model.run_async([self._bindings])
+        job.wait(30000)
 
         if self.nms_output:
             raw = self._bindings.output().get_buffer()

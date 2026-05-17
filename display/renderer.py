@@ -9,6 +9,7 @@ from display.vehicle_icon import draw_vehicle_icon
 from display.coverage_cone import draw_coverage_cones
 from display.contact_blip import draw_contact, draw_trail
 from display.proximity_glow import draw_proximity_glow
+from display.touch import touch_init, touch_poll, touch_close
 
 VIEW_PROX = 0
 VIEW_CAM_RIGHT = 1
@@ -24,6 +25,7 @@ class Renderer:
         )
         pygame.display.set_caption("open-PROX")
         pygame.mouse.set_visible(False)
+        touch_init()
         self.clock = pygame.time.Clock()
         self.font_hud = pygame.font.SysFont("consolas", 14)
 
@@ -51,11 +53,6 @@ class Renderer:
     def handle_events(self):
         now = time.monotonic()
         for event in pygame.event.get():
-            if event.type not in (pygame.WINDOWENTER, pygame.WINDOWLEAVE,
-                                  pygame.ACTIVEEVENT, pygame.WINDOWFOCUSGAINED,
-                                  pygame.WINDOWFOCUSLOST, pygame.WINDOWSHOWN,
-                                  pygame.WINDOWEXPOSED):
-                print(f"EVT {pygame.event.event_name(event.type)}", flush=True)
             if event.type == pygame.QUIT:
                 return False
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
@@ -64,7 +61,20 @@ class Renderer:
                 self._touch_down_time = now
                 self._touch_switched = False
             if event.type in (pygame.FINGERUP, pygame.MOUSEBUTTONUP):
-                # Quick tap (released before hold threshold) = back to prox
+                if not self._touch_switched and self.view != VIEW_PROX:
+                    self.view = VIEW_PROX
+                self._touch_down_time = 0
+                self._touch_switched = False
+
+        # Evdev touch reader (covers cage/Wayland where SDL2 misses wl_touch).
+        touch = touch_poll()
+        if touch is not None:
+            touching, _, _ = touch
+            if touching:
+                if self._touch_down_time == 0:
+                    self._touch_down_time = now
+                    self._touch_switched = False
+            else:
                 if not self._touch_switched and self.view != VIEW_PROX:
                     self.view = VIEW_PROX
                 self._touch_down_time = 0
@@ -284,4 +294,5 @@ class Renderer:
         return surf
 
     def shutdown(self):
+        touch_close()
         pygame.quit()

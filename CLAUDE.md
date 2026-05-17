@@ -85,7 +85,6 @@ find ~/open-PROX -name "__pycache__" -exec rm -rf {} + 2>/dev/null
 - Add `pcie_aspm=off` to `/boot/firmware/cmdline.txt` - PCIe power management causes Hailo DMA drops under sustained load.
 - Deploy code via `git clone` / `git pull`, NOT `scp` from Windows. SCP introduces null bytes that corrupt Python files. Always clear `__pycache__` after redeployment.
 - Multiprocessing uses `spawn` start method (set in `__main__` guard). `fork` causes SIGBUS with KMSDRM.
-- **Known issue:** Hailo-10H firmware crashes (HAILO_COMMUNICATION_CLOSED) after ~3 minutes of continuous inference. This is a hardware/firmware bug in hailo_platform 5.1.1, confirmed via bare stress test with no camera or display. Reported to Hailo community forum - investigating. Pipeline degrades gracefully, showing "HAILO DOWN" on HUD.
 
 ## Pipeline Architecture
 

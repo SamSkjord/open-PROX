@@ -19,9 +19,11 @@ class Renderer:
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode(
-            (config.DISPLAY_WIDTH, config.DISPLAY_HEIGHT)
+            (config.DISPLAY_WIDTH, config.DISPLAY_HEIGHT),
+            pygame.FULLSCREEN | pygame.NOFRAME,
         )
         pygame.display.set_caption("open-PROX")
+        pygame.mouse.set_visible(False)
         self.clock = pygame.time.Clock()
         self.font_hud = pygame.font.SysFont("consolas", 14)
 

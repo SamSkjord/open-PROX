@@ -150,3 +150,99 @@ Forum thread: "Hailo-10H COMMUNICATION_CLOSED after ~5000 frames of continuous i
 3. **Fix console cursor bleedthrough** - VT unbind works but resets on reboot, add to startup
 4. **Wait for Hailo response** on DRM conflict - they may have a kernel driver fix
 5. **Test on Pi 5 8GB** - more headroom for DMA buffers
+
+## Update: 2026-04-16
+
+### Reference app reproduces the crash without our code
+
+Installed `hailo-apps-infra` 26.3.0 (their installer needed `pygobject` in the venv, plus a Python 3.12 rebuilt with `--enable-shared` because the `hailo` Python module needs `libpython3.12.so.1.0`). Ran their reference `hailo-detect-simple` with `--input usb --arch hailo10h`:
+
+```
+Frame count: 566
+INFO | gstreamer.gstreamer_app | FPS measurement: 19.71, drop=0.00, avg=19.32
+[HailoRT] [error] Failed to send request, status = HAILO_COMMUNICATION_CLOSED(62)
+ERROR: Failed to run async inference, status = 62
+```
+
+Crash at ~30 seconds, ~frame 567, at 19 FPS. No display, no pygame, no PROX code in the loop. This is purely Hailo's own GStreamer pipeline + HailoRT 5.2.0 + USB camera. Definitively rules out our code as the cause.
+
+### Async API switch
+
+Changed `detect/yolo.py` from `cm.run([bindings], 30000)` to `wait_for_async_ready` + `run_async` + `job.wait(30000)` to match the path the rest of the Hailo stack uses. Crash mode shifts (driver timeout / VDMA EIO instead of COMMUNICATION_CLOSED) but the underlying issue persists.
+
+### Variance study (n=5 per CMA size)
+
+Wrote `tools/crash_trials.sh` to power cycle and re-run the async stress test. Five trials each:
+
+- `cma=256M`: 57.2s, 37.8s, 280.3s, 23.1s, 13.5s. Median 37.8s.
+- `cma=320M`: 9.2s, 43.6s, 18.5s, no-crash-in-300s, 23.5s. Median 23.5s.
+
+Within-config spread is 20x or more. One trial in each batch ran for several minutes cleanly. **Differences between CMA sizes are smaller than within-config variance.** Distribution looks bimodal: ~80% crash under 60s, ~20% run multiple minutes. Pattern is consistent with a timing-sensitive race rather than steady resource exhaustion.
+
+CMA ceiling on this 2GB board is about 320M regardless of `gpu_mem` (firmware reserves contiguous regions that block larger CMA reservations). 384M, 448M, 512M all fail with `cma: Failed to reserve N MiB on node -1` at boot.
+
+### PCIe Gen 3 auto-negotiates
+
+Removed `dtparam=pciex1_gen=3` from config.txt per RPi docs. Link still comes up at 8.0 GT/s x1 naturally:
+
+```
+brcm-pcie 1000110000.pcie: link up, 8.0 GT/s PCIe x1 (!SSC)
+pci 0001:01:00.0: 7.876 Gb/s available PCIe bandwidth, ... at 0001:00:00.0 (capable of 31.504 Gb/s with 8.0 GT/s PCIe x4 link)
+```
+
+The "capable of 31.504 Gb/s with x4" warning is expected (Pi 5 only has x1).
+
+### Driver source analysis (hailort-pcie-driver 5.2.0 DKMS)
+
+Localised the error paths in the driver source under `/usr/src/hailort-pcie-driver/`:
+
+`HAILO_VDMA_LAUNCH_TRANSFER` errno 5 (EIO) originates in `validate_channel_state()` at `common/vdma_common.c:341`:
+
+```c
+if (channel->state.num_avail != hw_num_avail) {
+    pr_err("Channel %d num-available HW mismatch (%ud!=%ud)\n", ...);
+    return -EIO;
+}
+if (channel->state.num_avail != desc_list->num_launched) {
+    pr_err("Channel %d num-available desc-list mismatch (%ud!=%ud)\n", ...);
+    return -EIO;
+}
+```
+
+Either the driver's software `num_avail` counter diverges from the hardware register, or two internal software counters diverge. The `pr_err` lines should hit dmesg but I haven't captured them yet (need to set up a dmesg watcher during the next trial).
+
+`Timeout waiting for soc control` comes from `linux/pcie/src/soc.c:66`:
+
+```c
+ret = wait_for_completion_timeout(&board->soc.control_resp_ready,
+    msecs_to_jiffies(PCI_SOC_CONTROL_CONNECT_TIMEOUT_MS));
+if (0 == ret) {
+    hailo_err(board, "Timeout waiting for soc control (timeout_ms=%d)\n", ...);
+    return -ETIMEDOUT;
+}
+```
+
+Means the SOC firmware has stopped responding on the PCIe control channel (separate from the inference channels). `soc_close` then also fails, so the firmware is unresponsive at teardown too.
+
+Sequence that fits all observations:
+
+1. SOC firmware stops servicing the inference channel (no completion IRQ for current transfer).
+2. `job.wait(5000)` in hailort times out.
+3. Subsequent VDMA ioctls fail with EIO because descriptor state has drifted.
+4. Python VDevice destructor calls `soc_close`, which also times out.
+5. pyhailort surfaces either `HAILO_DRIVER_OPERATION_FAILED(36)` or `HAILO_COMMUNICATION_CLOSED(62)` depending on which ioctl caught the wedge first.
+
+**Root cause is firmware-side.** Host driver and hailort are correctly detecting that the firmware went unresponsive. The variance is consistent with a race or external-event-triggered firmware fault that only fires under specific timing conditions.
+
+### Setup notes for reproducing
+
+- `hailo-apps-infra` 26.3.0 install needs root + Python 3.12 in PATH: `sudo env PATH=/usr/local/bin:/usr/bin:/bin ./install.sh`
+- `pygobject` install in their venv needs `libgirepository-2.0-dev libgirepository1.0-dev libcairo2-dev pkg-config cmake` from apt
+- `hailo-detect-simple` needs Gtk + GStreamer typelibs: `sudo apt install gir1.2-gtk-3.0 gir1.2-gst-plugins-base-1.0 gir1.2-gstreamer-1.0 gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav` and `GI_TYPELIB_PATH=/usr/lib/aarch64-linux-gnu/girepository-1.0`
+- The `hailo` Python module (separate from `hailo_platform`) needs `libpython3.12.so.1.0`. If Python 3.12 was built without `--enable-shared`, rebuild it: `./configure --enable-shared --prefix=/usr/local LDFLAGS='-Wl,-rpath=/usr/local/lib' && make -j4 && sudo make altinstall`. After altinstall verify `/usr/local/lib/python3.12/lib-dynload/math*.so` is non-zero size (build had a transient issue once that left empty .so files).
+
+### Status
+
+Posted comprehensive update to Hailo forum on 2026-04-16 with the variance data, driver source analysis, and minimal Python reproducer. Asked Michael for verbose driver/HailoRT logging mode, post-wedge SCU log access, firmware watchdog options, and any targeted tests they want. Awaiting reply.
+
+Forum post text saved at `docs/hailo-forum-post.md`. Async stress test at `~/async_stress.py` on the Pi. Trial harness at `tools/crash_trials.sh` (runs locally, ssh + power cycle + parse).

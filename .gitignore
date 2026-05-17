@@ -5,3 +5,10 @@ __pycache__/
 *.whl
 25.txt
 .claude/
+
+# Vendored Hailo source for reference only - do not commit
+tools/hailo_driver_ref/
+tools/pyhailort_ref.py
+
+# Test trial output
+crash_trials*.log

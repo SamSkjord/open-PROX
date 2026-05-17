@@ -51,6 +51,11 @@ class Renderer:
     def handle_events(self):
         now = time.monotonic()
         for event in pygame.event.get():
+            if event.type not in (pygame.WINDOWENTER, pygame.WINDOWLEAVE,
+                                  pygame.ACTIVEEVENT, pygame.WINDOWFOCUSGAINED,
+                                  pygame.WINDOWFOCUSLOST, pygame.WINDOWSHOWN,
+                                  pygame.WINDOWEXPOSED):
+                print(f"EVT {pygame.event.event_name(event.type)}", flush=True)
             if event.type == pygame.QUIT:
                 return False
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:

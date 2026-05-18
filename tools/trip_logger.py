@@ -17,6 +17,8 @@ from datetime import datetime
 LOG_ROOT = "/home/pi/prox-logs"
 FRAME_HZ = 5
 SYNC_EVERY = 30
+PI_UID = 1000
+PI_GID = 1000
 
 
 class TripLogger:
@@ -25,10 +27,13 @@ class TripLogger:
         self.dir = os.path.join(LOG_ROOT, stamp)
         self.frames_dir = os.path.join(self.dir, "frames")
         os.makedirs(self.frames_dir, exist_ok=True)
+        self._chown(self.dir)
+        self._chown(self.frames_dir)
 
         self.jsonl_path = os.path.join(self.dir, "contacts.jsonl")
         self.jsonl = open(self.jsonl_path, "w", buffering=1)
         self.jsonl_fd = self.jsonl.fileno()
+        self._chown(self.jsonl_path)
 
         self.start_mono = time.monotonic()
         self.start_epoch = time.time()
@@ -44,6 +49,12 @@ class TripLogger:
         }
         self._write(meta)
         print(f"Trip log: {self.dir}")
+
+    def _chown(self, path):
+        try:
+            os.chown(path, PI_UID, PI_GID)
+        except (PermissionError, OSError):
+            pass
 
     def _write(self, obj):
         self.jsonl.write(json.dumps(obj, separators=(",", ":")) + "\n")
@@ -81,6 +92,7 @@ class TripLogger:
                 bgr = cv2.cvtColor(camera_frame_rgb, cv2.COLOR_RGB2BGR)
                 path = os.path.join(self.frames_dir, f"{self.frame_save_idx:06d}_{side}.jpg")
                 cv2.imwrite(path, bgr, [cv2.IMWRITE_JPEG_QUALITY, 75])
+                self._chown(path)
             except Exception as e:
                 print(f"Frame save failed: {e}")
 

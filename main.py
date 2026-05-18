@@ -5,8 +5,17 @@ On Pi with camera + Hailo: live detection pipeline.
 On desktop or without hardware: synthetic targets.
 """
 
+import signal
 import time
 import config
+
+
+_shutdown_flag = False
+
+
+def _request_shutdown(signum, frame):
+    global _shutdown_flag
+    _shutdown_flag = True
 
 
 def _open_cameras():
@@ -76,6 +85,7 @@ def run_live():
     from range.monocular import detections_to_contacts
     from fusion.passthrough import fuse
     from track.sort import SortTracker
+    from tools.trip_logger import TripLogger
 
     renderer = Renderer()
     tracker = SortTracker()
@@ -98,11 +108,19 @@ def run_live():
         print(f"WARNING: Cannot init Hailo detector: {e}")
         renderer.detect_status = "ERROR"
 
+    logger = None
+    try:
+        logger = TripLogger()
+    except Exception as e:
+        print(f"WARNING: Trip logger init failed: {e}")
+
     print(f"Pipeline running - {len(cameras)} camera(s)")
 
+    last_logged_frame_rgb = None
+    last_logged_side = None
     try:
         running = True
-        while running:
+        while running and not _shutdown_flag:
             running = renderer.handle_events()
 
             all_contacts = []
@@ -111,6 +129,8 @@ def run_live():
                     continue
 
                 renderer.set_camera_frame(cam.frame_rgb, cam.side)
+                last_logged_frame_rgb = cam.frame_rgb
+                last_logged_side = cam.side
 
                 if detector is not None:
                     try:
@@ -128,7 +148,12 @@ def run_live():
             fused = fuse(all_contacts)
             tracked = tracker.update(fused)
             renderer.render(tracked)
+
+            if logger is not None:
+                logger.log_frame(tracked, last_logged_frame_rgb, last_logged_side or "RIGHT")
     finally:
+        if logger is not None:
+            logger.close()
         if detector is not None:
             detector.close()
         for cam in cameras:
@@ -157,6 +182,9 @@ def run_synthetic():
 
 
 def main():
+    signal.signal(signal.SIGTERM, _request_shutdown)
+    signal.signal(signal.SIGINT, _request_shutdown)
+
     has_hailo = False
     try:
         from hailo_platform import VDevice

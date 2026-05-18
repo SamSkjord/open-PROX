@@ -1,0 +1,21 @@
+[Unit]
+Description=open-PROX proximity awareness HUD
+After=multi-user.target
+Wants=systemd-udev-settle.service
+After=systemd-udev-settle.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/pi/open-PROX
+ExecStart=/home/pi/open-PROX/run.sh
+Restart=on-failure
+RestartSec=5
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=10
+StandardOutput=append:/var/log/open-prox.log
+StandardError=append:/var/log/open-prox.log
+
+[Install]
+WantedBy=multi-user.target
